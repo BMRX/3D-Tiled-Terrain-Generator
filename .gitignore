@@ -338,3 +338,29 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+/Assets/Legacy-TileSets
+/Assets/Models
+/Assets/Resources/TileSets
+/Assets/Resources/BU-TileSets
+/Assets/Resources/Cell.prefab
+/Assets/Resources/Ramp.prefab
+/Assets/Resources/Wall.prefab
+/Assets/TESTING.cs
+/Assembly-CSharp.csproj
+/Terrain Generator.sln
+/Unity.CollabProxy.Editor.csproj
+/Unity.Rider.Editor.csproj
+/Unity.TextMeshPro.csproj
+/Unity.TextMeshPro.Editor.csproj
+/Unity.Timeline.csproj
+/Unity.Timeline.Editor.csproj
+/Unity.VSCode.Editor.csproj
+/UnityEditor.TestRunner.csproj
+/UnityEditor.UI.csproj
+/UnityEngine.TestRunner.csproj
+*.csproj
+/Temp
+/ProjectSettings
+/Library
+/Assets/WorldGen
+/.vscode
