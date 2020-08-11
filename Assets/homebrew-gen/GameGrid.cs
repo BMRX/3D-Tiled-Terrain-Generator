@@ -9,26 +9,31 @@ public class Cell {
     public int ID { get; set; }
     public int Score { get; set; }
     public int Type { get; set; }
+    public int TileHeight { get; set; }
+    public float HeightMap { get; set; }
     public bool Walkable { get; set; }
     public bool Visited { get; set; }
 
-    public Cell(Vector2Int XY, int ID, int Score, int Type, bool Walkable, bool Visited) {
+    public Cell(Vector2Int XY, int ID, int Score, int Type, int TileHeight, float HeightMap, bool Walkable, bool Visited) {
         this.XY=XY;
         this.ID=ID;
         this.Score=Score;
         this.Type=Type;
+        this.TileHeight=TileHeight;
+        this.HeightMap=HeightMap;
         this.Walkable=Walkable;
         this.Visited=Visited;
     }
 }
-public class Grid {
+
+public class GameGrid {
     public Cell[,] grid;
 
     // Grid dimensions
     public int Width; // Width (ex: 250)
     public int Height; // Height (ex: 250)
 
-    public Grid(int x, int y) {
+    public GameGrid(int x, int y) {
         Width=x;
         Height=y;
 
@@ -40,7 +45,7 @@ public class Grid {
         for (int i = 0; i<Width; i++) {
             for (int k = 0; k<Height; k++) {
                 XY=new Vector2Int(i, k);
-                grid[i, k]=new Cell(XY, cellID, 0, 0, false, false);
+                grid[i, k]=new Cell(XY, cellID, 0, 0, 0, 0.0f, false, false);
                 cellID++;
             }
         }
@@ -58,7 +63,33 @@ public class Grid {
             Debug.Log("x: "+x);
         }
     }
-
+    public void setCellHeightMap(int x, int y, int v) {
+        try {
+            grid[x, y].HeightMap=v;
+        } catch {
+            Debug.Log("ERROR");
+            Debug.Log("w: "+Width);
+            Debug.Log("h: "+Height);
+            Debug.Log("x: "+x);
+        }
+    }
+    public void setCellTileHeight(int x, int y, int v) {
+        try {
+            grid[x, y].TileHeight=v;
+        } catch {
+            Debug.Log("ERROR");
+            Debug.Log("w: "+Width);
+            Debug.Log("h: "+Height);
+            Debug.Log("x: "+x);
+        }
+    }
+    public float getCellTileHeight(int x, int y) {
+            return grid[x, y].TileHeight;
+        
+    }
+    public float getCellHeightMap(int x, int y) {
+        return grid[x, y].HeightMap;
+    }
     public int getCellType(int x, int y) {
         if (x>=0&&x<=Width-1&&y>=0&&y<=Height-1) {
             return grid[x, y].Type;
@@ -120,19 +151,20 @@ public class Grid {
                     amplitude *= persistance;
                     frequency *= lacunarity;
                 }
+
                 if(noiseHeight > maxNoiseHeight) {
                     maxNoiseHeight=noiseHeight;
                 } else if(noiseHeight < minNoiseHeight) {
                     minNoiseHeight=noiseHeight;
                 }
                 
-                mapGrid[x, y].Type=Mathf.RoundToInt(noiseHeight);
+                mapGrid[x, y].HeightMap=noiseHeight;
             }
         }
 
         for (int x = 0; x<mapGrid.GetUpperBound(0); x++) {
             for (int y = 0; y<mapGrid.GetUpperBound(1); y++) {
-                mapGrid[x, y].Type=Mathf.RoundToInt(Mathf.InverseLerp(minNoiseHeight, maxNoiseHeight, mapGrid[x, y].Type));
+                mapGrid[x, y].HeightMap=Mathf.InverseLerp(minNoiseHeight, maxNoiseHeight, mapGrid[x, y].HeightMap);
 
             }
         }
@@ -140,19 +172,39 @@ public class Grid {
         return mapGrid;
     }
 
-    // I'm bad at math and I cannot for the life of me figure out how to get the noise gen to work properly.
-    public static Cell[,] FuckingLazyConvert(Cell[,] mapGrid) {
-        for (int x = 0; x<mapGrid.GetUpperBound(0); x++) {
-            for (int y = 0; y<mapGrid.GetUpperBound(1); y++) {
-                if(mapGrid[x,y].Type == 1) {
-                    mapGrid[x, y].Type = 2;
+    public static int GetSurroundingHeightTiles(Cell[,] mapGrid, int x, int y) {
+        int tileCount = 0;
+        for (int neighbourX = x-1; neighbourX<=x+1; neighbourX++) {
+            for (int neighbourY = y-1; neighbourY<=y+1; neighbourY++) {
+                if (neighbourX>=0&&neighbourX<mapGrid.GetUpperBound(0)&&neighbourY>=0&&neighbourY<mapGrid.GetUpperBound(1)) {
+                    //We don't want to count the tile we are checking the surroundings of
+                    if (neighbourX!=x||neighbourY!=y) {
+                        tileCount+=mapGrid[neighbourX, neighbourY].TileHeight;
+                    }
+                }
+            }
+        }
+        return tileCount;
+    }
+
+    public static Cell[,] SmoothHeightCellularAutomata(Cell[,] mapGrid, int smoothCount) {
+        for (int i = 0; i<smoothCount; i++) {
+            for (int x = 0; x<mapGrid.GetUpperBound(0); x++) {
+                for (int y = 0; y<mapGrid.GetUpperBound(1); y++) {
+                    int surroundingTiles = GetSurroundingHeightTiles(mapGrid, x, y);
+                    if (surroundingTiles>4) {
+                        mapGrid[x, y].TileHeight=1;
+                    } else if (surroundingTiles<4) {
+                        mapGrid[x, y].TileHeight=0;
+                    }
+
                 }
             }
         }
         return mapGrid;
     }
 
-    static int GetMooreSurroundingTiles(Cell[,] mapGrid, int x, int y) {
+    public static int GetMooreSurroundingTiles(Cell[,] mapGrid, int x, int y) {
         int tileCount = 0;
         for (int neighbourX = x-1; neighbourX<=x+1; neighbourX++) {
             for (int neighbourY = y-1; neighbourY<=y+1; neighbourY++) {
@@ -203,7 +255,18 @@ public class Grid {
 
     */
 
-    public List<List<Cell>> FindConnectedGroups(Grid mapGrid, int type) {
+    public static Cell[,] CheckWalkable(Cell[,] mapGrid) {
+        for(int x = 0; x<mapGrid.GetUpperBound(0); x++) {
+            for (int y = 0; y<mapGrid.GetUpperBound(1); y++) {
+                if (mapGrid[x,y].Type>=1) {
+                    mapGrid[x, y].Walkable=true;
+                }
+            }
+        }
+        return mapGrid;
+    }
+
+    public List<List<Cell>> FindConnectedGroups(GameGrid mapGrid, int type) {
         List<List<Cell>> groups = new List<List<Cell>>();
 
         for (int x = 0; x<mapGrid.getX(); x++) {
@@ -241,7 +304,7 @@ public class Grid {
     }
 
     // Recursively find connected blocks (depth-first search)
-    private void PopulateGroup(Grid mapGrid, List<Cell> group, Cell cell) {
+    private void PopulateGroup(GameGrid mapGrid, List<Cell> group, Cell cell) {
         cell.Visited=true;
         group.Add(cell);
 
@@ -270,7 +333,7 @@ public class Grid {
             }
         }
     }
-    
+
     private void ClearVistedState() {
         for(int x = 0; x < getX(); x++) {
             for (int y = 0; y<getX(); y++) {
@@ -279,8 +342,7 @@ public class Grid {
         }
     }
 
-    public static Grid RemoveWater(List<List<Cell>> groups, Grid mapGrid, int count) {
-
+    public static GameGrid RemoveWater(List<List<Cell>> groups, GameGrid mapGrid, int count) {
         for (int i = 0; i<count; i++) {
             int index = UnityEngine.Random.Range(0, groups.Count);
             var group = groups[index];
@@ -288,7 +350,6 @@ public class Grid {
                 mapGrid.setCellType(group[k].XY.x, group[k].XY.y, 1);
             }
         }
-
         return mapGrid;
     }
 
@@ -335,4 +396,5 @@ public class Grid {
             }
         }
     }
+
 }

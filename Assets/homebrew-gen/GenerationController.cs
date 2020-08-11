@@ -7,7 +7,9 @@ using UnityEditor;
 public class GenerationController : MonoBehaviour {
 	// Here will be public methods that can be used to generate maps according to different rulesets
 
-	private Grid mapGrid;
+	private GameGrid mapGrid;
+	private MeshGrid meshGrid;
+	private Material mapMaterial;
 	private GameObject parent;
 
 	//Modifiers
@@ -21,81 +23,120 @@ public class GenerationController : MonoBehaviour {
 	public int smoothCount;
 	public int seed;
 
+	public bool drawVertices = true;
+
 	public List<List<Cell>> waterGroups;
 
-	// Generates an "outdoor" terrain one large island sporting, foliage, bodies of water, etc.
-	public void GenerateTerrain() {
-
+    // Generates an "outdoor" terrain one large island sporting, foliage, bodies of water, etc.
+    public void GenerateTerrain() {
 		DateTime before = DateTime.Now;
 		DestroyImmediate(parent);
 		//Destroy(parent);
-		mapGrid=new Grid(width, height);
-        parent=new GameObject("MAP");
+		mapGrid=new GameGrid(width, height);
+		parent=new GameObject("MAP");
+		parent.AddComponent<MeshFilter>();
+		parent.AddComponent<MeshRenderer>();
+		parent.AddComponent<MeshGrid>();
 
-		if(seed == 0) {	seed=UnityEngine.Random.Range(0, int.MaxValue);	}
-		
+		//mapMaterial=parent.GetComponent<MeshRenderer>().material;
+		parent.GetComponent<MeshRenderer>().material=Resources.Load("test/MapMaterial", typeof(Material)) as Material;
+
+		meshGrid=parent.GetComponent<MeshGrid>();
+
+		if (seed == 0) {	seed=UnityEngine.Random.Range(0, int.MaxValue);	}
+
 		// Apply perlin noise 
-		Grid.GenerateNoiseMap(mapGrid.grid, seed, perlinModifier, octaves, persistance, lacrinarity);
-		waterGroups=mapGrid.FindConnectedGroups(mapGrid, 0);
-		mapGrid = Grid.RemoveWater(waterGroups, mapGrid,Mathf.RoundToInt(waterGroups.Count / 1.5f));
+		GameGrid.GenerateNoiseMap(mapGrid.grid, seed, perlinModifier, octaves, persistance, lacrinarity);
 
-		// Make this bitch into an island, idgaf circles at 12 points around the edge! Fuck it, I'm done - fuck this shit I suck at math.
-		Vector2[] blobArray = new [] {
-			new Vector2(0f,0f), new Vector2(width*0.25f, 0f),new Vector2(width*0.50f, 0f), new Vector2(width*0.75f, 0f), new Vector2(width,0f),
-			new Vector2(width*0.25f,height) ,new Vector2(width*0.50f,height), new Vector2(width*0.75f,height), new Vector2(width,height*0.25f),new Vector2(width,height*0.50f), new Vector2(width,height*0.75f),
-			new Vector2(width,height), new Vector2(0f,height*0.25f),new Vector2(0f,height*0.50f), new Vector2(0f,height*0.75f), new Vector2(0f, height)
-		};
+		float[,] falloff = FalloffGenerator.GenerateFalloffMap(width, height);
+		float[,] heightMap = new float[width,height];
+		for(int x = 0; x < mapGrid.getX(); x++) {
+			for(int y = 0; y < mapGrid.getY(); y++) {
+				mapGrid.grid[x, y].HeightMap=(mapGrid.grid[x, y].HeightMap*10)-falloff[x, y]*10;
+				heightMap[x, y]=mapGrid.grid[x, y].HeightMap;
+				// Set first layer of terrain
+				if (mapGrid.grid[x,y].HeightMap>= 1.5) {
+					mapGrid.setCellTileHeight(x, y, 0);
+					mapGrid.setCellType(x, y, 1);
+                } else {
+					mapGrid.setCellType(x, y, 0);
+				}
+                if (mapGrid.grid[x, y].HeightMap>=5.0) {
+                    mapGrid.setCellTileHeight(x, y, 1);
+                }
 
-		for (int i = 0; i<blobArray.Length; i++) {
-			float rnd = UnityEngine.Random.Range(0.025f, 0.15f);
-			//mapGrid.CircleEraser((int) blobArray[i].x, (int) blobArray[i].y, 1, rnd);
-		}
+			}
+        }
+		//waterGroups=mapGrid.FindConnectedGroups(mapGrid, 0);
+		//mapGrid = Grid.RemoveWater(waterGroups, mapGrid,Mathf.RoundToInt(waterGroups.Count / 1.5f));
 
 		// Use Moore Automata to smooth the map
-		if (smoothCount > 0) Grid.SmoothMooreCellularAutomata(mapGrid.grid, smoothCount);
+		if (smoothCount>0) {
+			GameGrid.SmoothMooreCellularAutomata(mapGrid.grid, smoothCount);
+			GameGrid.SmoothHeightCellularAutomata(mapGrid.grid, smoothCount);
+		}
 
 		// Removes tiles at the edge, map gen leaves random cells behind.
 		mapGrid.EdgeEraser();
 
+		// If cell.Type >= 1 set walkable to true
+		//Grid.CheckWalkable(mapGrid.grid);
+
 		// Render the gird
-		RenderGrid();
+		/*
+		 * 
+		 *			THIS IS THE WORK
+		 *			WORK ON THIS!!!
+		 * 
+		 * 
+		 */
+		meshGrid.GenerateTerrainMesh(mapGrid);
 
 		DateTime after = DateTime.Now;
 		TimeSpan duration = after.Subtract(before);
 		Debug.Log("Terrain Gen took: "+duration.Milliseconds+" ms");
-		
 	}
 
-	// Multiply position by scale of model else it all fucking overlaps, might have to find new sizes for assets depending on how I deal with walls...
+	void OnDrawGizmos() {
+		if(drawVertices== true) {
+			for (int i = 0; i<meshGrid.vertices.Length; i++) {
+				Gizmos.color=Color.black;
+				Gizmos.DrawSphere(meshGrid.vertices[i], 0.05f);
+				Gizmos.color=Color.white;
+				Handles.Label(new Vector3(meshGrid.vertices[i].x, meshGrid.vertices[i].y, meshGrid.vertices[i].z), i.ToString());
+			}
+		}
+	}
+
 	private void RenderGrid() {
 		for (int i = 0; i<mapGrid.getX(); i++) {
 			for (int j = 0; j<mapGrid.getY(); j++) {
 
-				if (mapGrid.getCellType(j, i)==0) {
-					//GameObject water = (GameObject) GameObject.Instantiate(Resources.Load("test/water"));
-					//water.transform.position=new Vector3(i*4, -0.4f, j*4);
-					//water.transform.parent=parent.transform;
-				}
+                if (mapGrid.getCellType(i, j)==0) {
+                    /*GameObject water = (GameObject) GameObject.Instantiate(Resources.Load("test/water"));
+                    water.transform.position=new Vector3(i, -0.4f, j);
+                    water.transform.parent=parent.transform;*/
+                }
 
-				if (mapGrid.getCellType(j, i)==1) {
-					GameObject aFloor =(GameObject) GameObject.Instantiate(Resources.Load("test/ground"));
-					aFloor.transform.position=new Vector3(i*4, 0, j*4); 
-					aFloor.transform.parent=parent.transform;
-				}
+                if (mapGrid.getCellType(i, j)==1) {
+                    GameObject aFloor =(GameObject) GameObject.Instantiate(Resources.Load("test/cube"));
+                    aFloor.transform.position=new Vector3(i, mapGrid.getCellTileHeight(i, j), j);
+                    aFloor.transform.parent=parent.transform;
+				} 
 
-				if (mapGrid.getCellType(j, i)==2) {
-					GameObject aWall =(GameObject) GameObject.Instantiate(Resources.Load("test/ramp"));
-					aWall.transform.position=new Vector3(i*4, aWall.GetComponent<Renderer>().bounds.size.y/2, j*4);
-					aWall.transform.parent=parent.transform;
-				}
+				if (mapGrid.getCellType(i, j)==3) {
+                    GameObject aWall =(GameObject) GameObject.Instantiate(Resources.Load("test/ramp"));
+                    aWall.transform.position=new Vector3(i*4, aWall.GetComponent<Renderer>().bounds.size.y/2, j*4);
+                    aWall.transform.parent=parent.transform;
+                }
 
-				if (mapGrid.getCellType(j, i)==3) {
-					GameObject aRamp =(GameObject) GameObject.Instantiate(Resources.Load("test/wall"));
-					aRamp.transform.position=new Vector3(i*4, aRamp.GetComponent<Renderer>().bounds.size.y/2, j*4);
-					aRamp.transform.parent=parent.transform;
-				}
+                if (mapGrid.getCellType(i, j)==4) {
+                    GameObject aRamp =(GameObject) GameObject.Instantiate(Resources.Load("test/wall"));
+                    aRamp.transform.position=new Vector3(i*4, aRamp.GetComponent<Renderer>().bounds.size.y/2, j*4);
+                    aRamp.transform.parent=parent.transform;
+                }
 
-			}
+            }
 		}
 	}
 

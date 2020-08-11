@@ -4,11 +4,14 @@ public class PlayerController : MonoBehaviour
 {
 
     public float panSpeed = 20f;
+    public float rotSpeed = 15f;
     public float panBorderThickness = 10f;
     public Vector2 panLimit;
     public float scrollSpeed = 20f;
     public float minY = 10f;
     public float maxY = 20f;
+
+    private float rotationY;
 
     private Transform camTransform;
     private Quaternion GetCameraTurn() {
@@ -16,12 +19,20 @@ public class PlayerController : MonoBehaviour
     }
     void Start() {
         camTransform = Camera.main.transform;
+         
     }
 
     void Update() {
         Vector3 position = transform.position;
+        Vector3 newRotation = transform.eulerAngles;
 
-        if(Input.GetKey("w") /*|| Input.mousePosition.y >= Screen.height - panBorderThickness*/) {
+        if (Input.GetKey("q")) {
+            newRotation-=transform.up*rotSpeed*Time.deltaTime;
+        }
+        if (Input.GetKey("e")) {
+           newRotation+=transform.up*rotSpeed*Time.deltaTime;
+        }
+        if (Input.GetKey("w") /*|| Input.mousePosition.y >= Screen.height - panBorderThickness*/) {
             //transform.position += transform.forward * panSpeed * Time.deltaTime;
             position += transform.forward * panSpeed * Time.deltaTime;
         }
@@ -48,5 +59,6 @@ public class PlayerController : MonoBehaviour
 
 
         transform.position = position;
+        transform.eulerAngles=newRotation;
     }
 }
