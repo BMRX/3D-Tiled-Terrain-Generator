@@ -83,6 +83,7 @@ public class GenerationController : MonoBehaviour {
 		//Grid.CheckWalkable(mapGrid.grid);
 
 		// Render the gird
+		//RenderGrid();
 		/*
 		 * 
 		 *			THIS IS THE WORK
@@ -90,7 +91,7 @@ public class GenerationController : MonoBehaviour {
 		 * 
 		 * 
 		 */
-		meshGrid.GenerateTerrainMesh(mapGrid);
+		meshGrid.Init(mapGrid.grid);
 
 		DateTime after = DateTime.Now;
 		TimeSpan duration = after.Subtract(before);

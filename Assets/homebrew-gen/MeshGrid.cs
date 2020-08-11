@@ -1,92 +1,64 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
-public class MeshGrid : MonoBehaviour { 
+public class MeshGrid : MonoBehaviour {
+
+    public float cellSize = 1;
+    public Vector3 gridOffset;
+    public Vector2Int gridSize;
 
     public Vector3[] vertices;
     private int[] triangles;
 
     private Mesh mesh;
 
-    private int width;
-    private int height;
-
     // Generate mesh based on GameGrid cell tileHeight
 
-    public void GenerateTerrainMesh(GameGrid mapGrid) {
-        width=mapGrid.getX();
-        height=mapGrid.getY();
+    public void Init(Cell[,] mapGrid) {
+        gridSize.x=mapGrid.GetUpperBound(0);
+        gridSize.y=mapGrid.GetUpperBound(1);
         GetComponent<MeshFilter>().mesh=mesh=new Mesh();
         mesh.name="Procedural Grid";
         mesh.Clear();
 
-        //vertices=new Vector3[(mapGrid.getX()+1)*(mapGrid.getY()+1)];
-        
+        vertices=new Vector3[(gridSize.x+1)*(gridSize.y+1)];
+        triangles = new int[gridSize.x*gridSize.y*6];
 
-        List<Vector3> verts = new List<Vector3>();
-        for (int i = 0, y = 0; y<=mapGrid.getY(); y++) {
-            for (int x = 0; x<=mapGrid.getX(); x++, i++) {
-                if(mapGrid.getCellType(x,y)==1) {
-                    verts.Add(new Vector3(x, 0, y));
-                    //vertices[i]=new Vector3(x, 0, y);
+        for (int i = 0, y = 0; y<=gridSize.y; y++) {
+            for (int x = 0; x<=gridSize.x; x++, i++) {
+                float h = mapGrid[x,y].TileHeight;
+                int tileType = mapGrid[x,y].Type;
+                if (h==0&&tileType==0) {
+                    // Water
+                    vertices[i]=new Vector3(x, h-2f, y);
+                } else if (h==0&&tileType==1) {
+                    // Ground level
+                    vertices[i]=new Vector3(x, h, y);
                 }
-                
+                if (h==1&&tileType==1) {
+                    // Height 1
+                    vertices[i]=new Vector3(x, h*2, y);
+                }
+                if (h==2&&tileType==1) {
+                    // Height 2
+                    vertices[i]=new Vector3(x, h*2, y);
+                }
             }
+            
         }
-        foreach(Vector3 vert in verts) {
-            // Fuck this is confusing!
-        }
-        vertices=verts.ToArray();
-        triangles=new int[(width-vertices.Length/2)*(height-vertices.Length/2)*6];
-        /*List<Vector3> verts = new List<Vector3>();
-        for (int y = 0; y<=mapGrid.getY(); y++) {
-            for (int x = 0; x<=mapGrid.getX(); x++) {
-                if (mapGrid.getCellType(x,y) == 1) {
-                    // Currently this adds vertices in the wrong order
-                    if (mapGrid.getCellTileHeight(x, y)==0&&GameGrid.GetMooreSurroundingTiles(mapGrid.grid, x, y)<=6) {
-                        // Determine where new vertices go
-                        verts.Add(new Vector3(x, mapGrid.grid[x, y].TileHeight, y));
-                        verts.Add(new Vector3(x, mapGrid.grid[x, y].TileHeight-1, y));
-                    } else if (mapGrid.getCellTileHeight(x, y)==1&&GameGrid.GetSurroundingHeightTiles(mapGrid.grid, x, y)<=6) {
-                        verts.Add(new Vector3(x, mapGrid.grid[x, y].TileHeight, y));
-                        verts.Add(new Vector3(x, mapGrid.grid[x, y].TileHeight-1, y));
-                    } else {
-                        verts.Add(new Vector3(x, mapGrid.grid[x, y].TileHeight, y));
-                    }
-                    *//*if (mapGrid.getCellTileHeight(x, y)==0&&GameGrid.GetMooreSurroundingTiles(mapGrid.grid, x, y)<=6) {
-                        // Determine where new vertices go
-                        verts.Add(new Vector3(x, mapGrid.grid[x, y].TileHeight, y));
-                        verts.Add(new Vector3(x, mapGrid.grid[x, y].TileHeight-1, y));
-                    } else if (mapGrid.getCellTileHeight(x, y)==1&&GameGrid.GetSurroundingHeightTiles(mapGrid.grid, x, y)<=6) {
-                        verts.Add(new Vector3(x, mapGrid.grid[x, y].TileHeight, y));
-                        verts.Add(new Vector3(x, mapGrid.grid[x, y].TileHeight-1, y));
-                    } else {
-                        verts.Add(new Vector3(x, mapGrid.grid[x, y].TileHeight, y));
-                    }*//*
-                } 
-            }
-        }
-        vertices=verts.ToArray();*/
         mesh.vertices=vertices;
 
-        
-        for (int ti = 0, vi = 0, y = 0; y<triangles.Length/2; y++, vi++) {
-            for (int x = 0; x<triangles.Length/2; x++) {
-                if (mapGrid.getCellType(y, x)==1) {
-                    vi++;
-                    ti+=6;
-                    triangles[ti]=vi;
-                    triangles[ti+3]=triangles[ti+2]=vi+1;
-                    triangles[ti+4]=triangles[ti+1]=vi+triangles.Length/2+1;
-                    triangles[ti+5]=vi+triangles.Length/2+2;
-                }
+        for (int ti = 0, vi = 0, y = 0; y<gridSize.y; y++, vi++) {
+            for (int x = 0; x<gridSize.x; x++, ti+=6, vi++) {
+                triangles[ti]=vi;
+                triangles[ti+3]=triangles[ti+2]=vi+1;
+                triangles[ti+4]=triangles[ti+1]=vi+gridSize.x+1;
+                triangles[ti+5]=vi+gridSize.x+2;
             }
         }
-        Debug.Log("X: "+(int) vertices[0].x+" Y: "+(int) vertices[0].z+" H: "+ vertices[0].y);
-        Debug.Log("X: "+(int) vertices[1].x+" Y: "+(int) vertices[1].z+" H: "+ vertices[0].y);
-        Debug.Log("X: "+(int) vertices[2].x+" Y: "+(int) vertices[2].z+" H: "+ vertices[0].y);
-        //mesh.triangles=triangles;
+
+        Debug.Log("Triangles length: "+triangles.Length);
+        
+        mesh.triangles=triangles;
         mesh.RecalculateNormals();
     }
 
