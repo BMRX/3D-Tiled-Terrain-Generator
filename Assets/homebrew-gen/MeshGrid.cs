@@ -20,16 +20,18 @@ public class MeshGrid : MonoBehaviour {
         mesh.name="Procedural Grid";
         mesh.Clear();
 
-        vertices=new Vector3[(gridSize.x+1)*(gridSize.y+1)];
+        vertices=new Vector3[(gridSize.x+1)*(gridSize.y+1)*5];
         triangles = new int[gridSize.x*gridSize.y*6];
 
+        // 9 vertices per cell
+        float cellOffset = cellSize * 0.5f;
         for (int i = 0, y = 0; y<=gridSize.y; y++) {
             for (int x = 0; x<=gridSize.x; x++, i++) {
                 float h = mapGrid[x,y].TileHeight;
                 int tileType = mapGrid[x,y].Type;
                 if (h==0&&tileType==0) {
                     // Water
-                    vertices[i]=new Vector3(x, h-2f, y);
+                    vertices[i]=new Vector3(x, h-2f, y);//e
                 } else if (h==0&&tileType==1) {
                     // Ground level
                     vertices[i]=new Vector3(x, h, y);
@@ -43,7 +45,7 @@ public class MeshGrid : MonoBehaviour {
                     vertices[i]=new Vector3(x, h*2, y);
                 }
             }
-            
+
         }
         mesh.vertices=vertices;
 

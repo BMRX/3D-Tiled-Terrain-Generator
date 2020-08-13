@@ -7,10 +7,17 @@ using UnityEditor;
 public class GenerationController : MonoBehaviour {
 	// Here will be public methods that can be used to generate maps according to different rulesets
 
+	public enum DrawMode { NoiseMap, ColourMap, Mesh };
+	public DrawMode drawMode;
+
+	const int mapChunkSize = 241;
+
 	private GameGrid mapGrid;
 	private MeshGrid meshGrid;
 	private Material mapMaterial;
 	private GameObject parent;
+
+	private MeshSettings meshSettings;
 
 	//Modifiers
 	public int width;
@@ -22,6 +29,8 @@ public class GenerationController : MonoBehaviour {
 	public float lacrinarity;
 	public int smoothCount;
 	public int seed;
+
+	public TerrainType[] regions;
 
 	public bool drawVertices = true;
 
@@ -49,19 +58,17 @@ public class GenerationController : MonoBehaviour {
 		GameGrid.GenerateNoiseMap(mapGrid.grid, seed, perlinModifier, octaves, persistance, lacrinarity);
 
 		float[,] falloff = FalloffGenerator.GenerateFalloffMap(width, height);
-		float[,] heightMap = new float[width,height];
-		for(int x = 0; x < mapGrid.getX(); x++) {
-			for(int y = 0; y < mapGrid.getY(); y++) {
-				mapGrid.grid[x, y].HeightMap=(mapGrid.grid[x, y].HeightMap*10)-falloff[x, y]*10;
-				heightMap[x, y]=mapGrid.grid[x, y].HeightMap;
+		for(int x = 0; x <width; x++) {
+			for(int y = 0; y <height; y++) {
+				//mapGrid.grid[x, y].HeightMap=(mapGrid.grid[x, y].HeightMap*10)-falloff[x, y]*10;
 				// Set first layer of terrain
-				if (mapGrid.grid[x,y].HeightMap>= 1.5) {
+				if ((mapGrid.grid[x, y].HeightMap*10)-falloff[x, y]*10>= 1.5) {
 					mapGrid.setCellTileHeight(x, y, 0);
 					mapGrid.setCellType(x, y, 1);
                 } else {
 					mapGrid.setCellType(x, y, 0);
 				}
-                if (mapGrid.grid[x, y].HeightMap>=5.0) {
+                if ((mapGrid.grid[x, y].HeightMap*10)-falloff[x, y]*10>=5.0) {
                     mapGrid.setCellTileHeight(x, y, 1);
                 }
 
@@ -79,19 +86,44 @@ public class GenerationController : MonoBehaviour {
 		// Removes tiles at the edge, map gen leaves random cells behind.
 		mapGrid.EdgeEraser();
 
+		Color[] colourMap = new Color[width*height];
+		// Deal with the Texture
+		for (int x = 0; x<width; x++) {
+			for (int y = 0; y<height; y++) {
+				float currentHeight = mapGrid.grid[x,y].TileHeight;
+				for(int i = 0; i < regions.Length; i ++) {
+					if(currentHeight<=regions[i].height) {
+						colourMap[x*height+y] = regions[i].colour;
+						break;
+                    }
+                }
+			}
+		}
+
 		// If cell.Type >= 1 set walkable to true
 		//Grid.CheckWalkable(mapGrid.grid);
 
 		// Render the gird
 		//RenderGrid();
-		/*
-		 * 
-		 *			THIS IS THE WORK
-		 *			WORK ON THIS!!!
-		 * 
-		 * 
-		 */
-		meshGrid.Init(mapGrid.grid);
+				/*
+				 * 
+				 *			THIS IS THE WORK
+				 *			WORK ON THIS!!!
+				 * 
+				 * 
+				 */
+		//meshGrid.Init(mapGrid.grid);
+
+		MapDisplay display = FindObjectOfType<MapDisplay>();
+		if(drawMode == DrawMode.NoiseMap) {
+			display.DrawTexture(TextureGenerator.TextureFromHeightMap(mapGrid.grid));
+			//display.DrawNoiseMap(mapGrid.grid);
+		} else if(drawMode == DrawMode.ColourMap) {
+			display.DrawTexture(TextureGenerator.TextureFromColourMap(colourMap, mapChunkSize, mapChunkSize));
+		} else if (drawMode==DrawMode.Mesh) {
+			display.DrawMesh(MeshGenerator.GenerateTerrainMesh(mapGrid.grid, meshSettings, 0), TextureGenerator.TextureFromColourMap(colourMap, mapChunkSize, mapChunkSize));
+		}
+		
 
 		DateTime after = DateTime.Now;
 		TimeSpan duration = after.Subtract(before);
@@ -148,6 +180,13 @@ public class GenerationController : MonoBehaviour {
 		if (octaves<0) { octaves=0;	}
 	}
 
+}
+
+[System.Serializable]
+public struct TerrainType {
+	public string name;
+	public float height;
+	public Color colour;
 }
 
 [CustomEditor (typeof(GenerationController))]
